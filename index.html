@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Le Bon Guide — Analyse IA (Cloud)</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 40px auto; max-width: 960px; padding: 0 16px; }
+    h1 { font-size: 28px; font-weight: 800; margin: 0 0 6px 0; }
+    .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+    .field { margin-bottom: 12px; }
+    .label { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+    .input { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 10px; }
+    .input.error { border-color: #c00; }
+    .error-text { color: #c00; font-size: 12px; margin-top: 6px; }
+    .btn { margin-top: 16px; padding: 12px 16px; border-radius: 12px; border: 1px solid #111; background: #111; color: #fff; font-weight: 700; cursor: pointer; }
+    .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+    .section { margin-top: 16px; padding: 16px; border: 1px solid #eee; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
+    ul { margin: 8px 0 0 18px; }
+    .note { color:#555; margin: 0 0 8px 0; }
+    .chips { display:flex; gap:8px; }
+    .chip { padding:8px 12px; border-radius:999px; border:1px solid #ddd; background:#f7f7f7; cursor:pointer; }
+    .chip.active { background:#111; color:#fff; }
+    #status { margin-top: 8px; font-size: 13px; color:#555; }
+    #status.error { color:#b00020; }
+  </style>
+</head>
+<body>
+  <h1>Le Bon Guide — Analyse IA</h1>
+  <p class="note">
+    L’utilisateur saisit les infos du bien, l’IA renvoie : <strong>6 points forts</strong>, <strong>6 points de vigilance</strong>, <strong>2 améliororations</strong>.
+  </p>
+
+  <form id="form">
+    <div class="grid">
+      <div class="field">
+        <div class="label">Surface habitable (m²)</div>
+        <input id="surfaceHab" class="input" type="number" min="10" max="1000" value="85" />
+        <div id="err-surfaceHab" class="error-text" style="display:none;"></div>
+      </div>
+      <div class="field">
+        <div class="label">Nombre de pièces</div>
+        <input id="nbPieces" class="input" type="number" min="1" max="10" value="4" />
+        <div id="err-nbPieces" class="error-text" style="display:none;"></div>
+      </div>
+      <div class="field">
+        <div class="label">Nombre de salles d’eau</div>
+        <input id="nbSdb" class="input" type="number" min="0" max="5" value="1" />
+        <div id="err-nbSdb" class="error-text" style="display:none;"></div>
+      </div>
+      <div class="field">
+        <div class="label">Année de construction</div>
+        <input id="anneeConstr" class="input" type="number" min="1800" max="2100" value="1985" />
+        <div id="err-anneeConstr" class="error-text" style="display:none;"></div>
+      </div>
+      <div class="field">
+        <div class="label">Classe énergétique (DPE)</div>
+        <select id="dpe" class="input">
+          <option>A</option><option>B</option><option>C</option>
+          <option>D</option><option selected>E</option><option>F</option><option>G</option><option>Inconnue</option>
+        </select>
+      </div>
+      <div class="field">
+        <div class="label">Localisation (ville ou adresse)</div>
+        <input id="localisation" class="input" type="text" placeholder="ex: Bordeaux (33000)" />
+        <div id="err-localisation" class="error-text" style="display:none;"></div>
+      </div>
+      <div class="field">
+        <div class="label">Piscine</div>
+        <div class="chips">
+          <div id="piscine-oui" class="chip">Oui</div>
+          <div id="piscine-non" class="chip active">Non</div>
+        </div>
+      </div>
+      <div class="field">
+        <div class="label">Garage</div>
+        <div class="chips">
+          <div id="garage-oui" class="chip active">Oui</div>
+          <div id="garage-non" class="chip">Non</div>
+        </div>
+      </div>
+      <div class="field">
+        <div class="label">Double vitrage</div>
+        <div class="chips">
+          <div id="dv-oui" class="chip active">Oui</div>
+          <div id="dv-non" class="chip">Non</div>
+        </div>
+      </div>
+      <div class="field">
+        <div class="label">Surface du terrain (m²)</div>
+        <input id="surfaceTerrain" class="input" type="number" min="0" max="50000" value="600" />
+        <div id="err-surfaceTerrain" class="error-text" style="display:none;"></div>
+      </div>
+      <div class="field">
+        <div class="label">Prix de vente (€)</div>
+        <input id="prixVente" class="input" type="number" min="10000" max="5000000" value="245000" />
+        <div id="err-prixVente" class="error-text" style="display:none;"></div>
+      </div>
+      <div class="field">
+        <div class="label">Travaux &lt; 10 ans (facultatif)</div>
+        <input id="travauxRecents" class="input" type="text" placeholder="ex: isolation combles 2019" />
+      </div>
+      <div class="field">
+        <div class="label">État général</div>
+        <select id="etatGeneral" class="input">
+          <option>Neuf ou récemment rénovée</option>
+          <option>Bon état</option>
+          <option selected>À rafraîchir</option>
+          <option>Mauvais état</option>
+        </select>
+      </div>
+    </div>
+
+    <button id="analyserBtn" type="submit" class="btn">Analyser avec l’IA</button>
+    <div id="status"></div>
+  </form>
+
+  <div id="resultats" style="margin-top:24px; display:none;">
+    <h2 style="font-size:22px; font-weight:800;">Résultats</h2>
+    <div class="section">
+      <div style="font-weight:700; margin-bottom:8px;">Points forts (6)</div>
+      <ul id="liste-forts"></ul>
+    </div>
+    <div class="section">
+      <div style="font-weight:700; margin-bottom:8px;">Points de vigilance (6)</div>
+      <ul id="liste-vigi"></ul>
+    </div>
+    <div class="section">
+      <div style="font-weight:700; margin-bottom:8px;">Améliorations (2)</div>
+      <ul id="liste-amels"></ul>
+    </div>
+  </div>
+
+  <script>
+    // Oui/Non
+    let piscine = false;
+    let garage = true;
+    let doubleVitrage = true;
+    function updateChip(idOui, idNon, value){
+      document.getElementById(idOui).classList.toggle('active', value === true);
+      document.getElementById(idNon).classList.toggle('active', value === false);
+    }
+    document.getElementById('piscine-oui').onclick = function(){ piscine = true; updateChip('piscine-oui','piscine-non', true); };
+    document.getElementById('piscine-non').onclick = function(){ piscine = false; updateChip('piscine-oui','piscine-non', false); };
+    document.getElementById('garage-oui').onclick = function(){ garage = true; updateChip('garage-oui','garage-non', true); };
+    document.getElementById('garage-non').onclick = function(){ garage = false; updateChip('garage-oui','garage-non', false); };
+    document.getElementById('dv-oui').onclick = function(){ doubleVitrage = true; updateChip('dv-oui','dv-non', true); };
+    document.getElementById('dv-non').onclick = function(){ doubleVitrage = false; updateChip('dv-oui','dv-non', false); };
+
+    function fillResults(res){
+      const ulF = document.getElementById('liste-forts');
+      const ulV = document.getElementById('liste-vigi');
+      const ulA = document.getElementById('liste-amels');
+      ulF.innerHTML = "";
+      ulV.innerHTML = "";
+      ulA.innerHTML = "";
+      (res.forts || []).forEach(t => {
+        const li = document.createElement('li'); li.textContent = t; ulF.appendChild(li);
+      });
+      (res.vigilances || []).forEach(t => {
+        const li = document.createElement('li'); li.textContent = t; ulV.appendChild(li);
+      });
+      (res.ameliorations || res.amels || []).forEach(a => {
+        const li = document.createElement('li');
+        const action = a.action || a;
+        const impact = a.impact_dpe ? " — impact DPE : " + a.impact_dpe : "";
+        const gain = a.gain ? " — gain facture : " + a.gain : "";
+        li.textContent = action + impact + gain;
+        ulA.appendChild(li);
+      });
+      document.getElementById('resultats').style.display = 'block';
+      document.getElementById('resultats').scrollIntoView({behavior:'smooth'});
+    }
+
+    document.getElementById('form').addEventListener('submit', async function(e){
+      e.preventDefault();
+      const status = document.getElementById('status');
+      const btn = document.getElementById('analyserBtn');
+      status.textContent = "";
+      status.className = "";
+      btn.disabled = true;
+
+      const ids = ['surfaceHab','nbPieces','nbSdb','anneeConstr','surfaceTerrain','prixVente','localisation'];
+      ids.forEach(id => {
+        document.getElementById(id).classList.remove('error');
+        const err = document.getElementById('err-' + id);
+        if (err) err.style.display = 'none';
+      });
+
+      const surfaceHab = parseInt(document.getElementById('surfaceHab').value,10);
+      const nbPieces = parseInt(document.getElementById('nbPieces').value,10);
+      const nbSdb = parseInt(document.getElementById('nbSdb').value,10);
+      const anneeConstr = parseInt(document.getElementById('anneeConstr').value,10);
+      const dpe = document.getElementById('dpe').value;
+      const localisation = document.getElementById('localisation').value.trim();
+      const surfaceTerrain = parseInt(document.getElementById('surfaceTerrain').value,10);
+      const prixVente = parseInt(document.getElementById('prixVente').value,10);
+      const travauxRecents = document.getElementById('travauxRecents').value;
+      const etatGeneral = document.getElementById('etatGeneral').value;
+
+      let ok = true;
+      function setErr(id, msg){
+        ok = false;
+        document.getElementById(id).classList.add('error');
+        const err = document.getElementById('err-' + id);
+        if (err){
+          err.textContent = msg;
+          err.style.display = 'block';
+        }
+      }
+
+      const currentYear = (new Date()).getFullYear();
+      if (!(surfaceHab >= 10 && surfaceHab <= 1000)) setErr('surfaceHab',"Entre 10 et 1000 m²");
+      if (!(nbPieces >= 1 && nbPieces <= 10)) setErr('nbPieces',"Entre 1 et 10");
+      if (!(nbSdb >= 0 && nbSdb <= 5)) setErr('nbSdb',"Entre 0 et 5");
+      if (!(anneeConstr >= 1800 && anneeConstr <= currentYear)) setErr('anneeConstr',"Année invalide");
+      if (!(surfaceTerrain >= 0 && surfaceTerrain <= 50000)) setErr('surfaceTerrain',"0 à 50 000 m²");
+      if (!(prixVente >= 10000 && prixVente <= 5000000)) setErr('prixVente',"10 000 à 5 000 000 €");
+      if (localisation.length < 2) setErr('localisation',"Ville/adresse obligatoire (≥ 2 caractères)");
+
+      if (!ok){
+        status.textContent = "Corrige les champs en rouge, puis relance l’analyse.";
+        status.className = "error";
+        btn.disabled = false;
+        return;
+      }
+
+      const data = {
+        surfaceHab, nbPieces, nbSdb, anneeConstr, dpe, localisation,
+        piscine, garage, doubleVitrage, surfaceTerrain, prixVente,
+        travauxRecents, etatGeneral
+      };
+
+      status.textContent = "Analyse IA en cours...";
+      try {
+        const resp = await fetch("/api/analyze-ia", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ form: data })
+        });
+        if (!resp.ok){
+          throw new Error("HTTP " + resp.status);
+        }
+        const json = await resp.json();
+        fillResults(json);
+        status.textContent = "Analyse IA terminée.";
+      } catch (err){
+        console.error("Erreur IA:", err);
+        status.textContent = "Erreur lors de l’analyse IA (serveur ou connexion).";
+        status.className = "error";
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
