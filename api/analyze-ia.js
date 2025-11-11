@@ -1,10 +1,10 @@
-const OpenAI = require("openai");
+import OpenAI from "openai";
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.status(405).json({ error: "Méthode non autorisée" });
     return;
@@ -96,4 +96,17 @@ Contraintes :
       typeof a === "string"
         ? { action: a, impact_dpe: null, gain: null }
         : {
-            action: a.action ||
+            action: a.action || "",
+            impact_dpe: a.impact_dpe ?? null,
+            gain: a.gain ?? null,
+          }
+    );
+
+    if (!forts.length || !vigilances.length || ameliorations.length < 1) {
+      res.status(500).json({ error: "Réponse IA incomplète" });
+      return;
+    }
+
+    res.status(200).json({ forts, vigilances, ameliorations });
+  } catch (err) {
+    console.error("Erreur /api/analyz
