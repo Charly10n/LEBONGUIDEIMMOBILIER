@@ -1,46 +1,49 @@
-// /api/chat.js — v3 stable (CommonJS, non-streaming, sans SDK OpenAI)
-const fetchFn = global.fetch || ((...a)=>import('node-fetch').then(({default: f})=>f(...a)));
-
-module.exports = async (req, res) => {
+// /api/chat.js — ESM, sans SDK OpenAI, réponse non-streaming (texte simple)
+export default async function handler(req, res) {
   try {
-    if (req.method !== 'POST') { res.setHeader('Allow','POST'); return res.status(405).send('Method Not Allowed'); }
+    if (req.method !== 'POST') {
+      res.setHeader('Allow', 'POST');
+      return res.status(405).json({ error: 'Method Not Allowed' });
+    }
+
     const { messages = [], url } = req.body || {};
 
-    // 1) Récupère la page d’annonce (si fournie)
+    // 1) Récupération page (optionnelle)
     let html = '', host = '';
     if (url && /^https?:\/\//i.test(url)) {
       try {
-        const r = await fetchFn(url, { headers: { 'user-agent': 'Mozilla/5.0 LBGI ChatBot' }, redirect: 'follow' });
+        const r = await fetch(url, { headers: { 'user-agent': 'Mozilla/5.0 LBGI ChatBot' }, redirect: 'follow' });
         html = await r.text();
         host = new URL(url).host;
-      } catch (_) { html = ''; }
+      } catch (_) {
+        html = '';
+      }
     }
 
-    // 2) Nettoyage + extraction (JSON-LD + meta + regex)
+    // 2) Nettoyage + extraction
     const text  = sanitizeHtml(html);
     const facts = composeFacts({ url, host, html, text, jsonld: extractJsonLd(html), meta: extractMeta(html) });
 
-    // 3) Contexte compact (inclut €/m² si calculable)
+    // 3) Contexte pour le prompt
     const urlContext = buildContextFromFacts(facts, text);
 
-    // 4) Prompt système cadré
+    // 4) Prompt système
     const systemPrompt = getSystemPrompt(url, urlContext);
 
-    // 5) Appel OpenAI (réponse unique, stable)
-    const key = process.env.OPENAI_API_KEY;
-    if (!key) return res.status(500).send('Missing OPENAI_API_KEY');
+    // 5) Appel OpenAI (HTTPS direct, pas de SDK)
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) return res.status(500).send('Missing OPENAI_API_KEY');
 
-    const r = await fetchFn('https://api.openai.com/v1/chat/completions', {
+    const r = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+      headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         temperature: 0.2,
         messages: [
           { role: 'system', content: systemPrompt },
-          ...messages
-            .filter(m => m.role === 'user' || m.role === 'assistant')
-            .map(m => ({ role: m.role, content: m.content }))
+          ...messages.filter(m => m.role === 'user' || m.role === 'assistant')
+                     .map(m => ({ role: m.role, content: m.content }))
         ]
       })
     });
@@ -58,9 +61,9 @@ module.exports = async (req, res) => {
   } catch (e) {
     return res.status(500).send(`Server error: ${e.message}`);
   }
-};
+}
 
-// ========= Helpers extraction (sans dépendances) =========
+/* ----------------- Helpers extraction (sans dépendances) ----------------- */
 function sanitizeHtml(html){
   return (html||'')
     .replace(/<script[\s\S]*?<\/script>/gi,' ')
@@ -86,13 +89,13 @@ function extractJsonLd(html){
 function extractMeta(html){
   const take=(name)=>{
     const re = new RegExp(`<meta[^>]+property=["']${name}["'][^>]+content=["']([^"']+)["']`,'i');
-    const re2= new RegExp(`<meta[^>]+name=["']${name}["'][^>]+content=["']([^"']+)["']`,'i');
-    return (html.match(re)?.[1] || html.match(re2)?.[1] || '').trim();
+    const re2= new RegExp(`<meta[^>]+name=["']${name}["'][^>]+content=["']([^"']+)?["']`,'i');
+    return (html?.match(re)?.[1] || html?.match(re2)?.[1] || '').trim();
   };
   return {
-    title: take('og:title')||take('twitter:title'),
-    description: take('og:description')||take('description'),
-    image: take('og:image')||take('twitter:image'),
+    title: take('og:title') || take('twitter:title'),
+    description: take('og:description') || take('description'),
+    image: take('og:image') || take('twitter:image'),
     locale: take('og:locale'),
   };
 }
