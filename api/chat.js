@@ -3,7 +3,7 @@ const fetchFn = global.fetch || ((...a)=>import('node-fetch').then(({default: f}
 
 module.exports = async (req, res) => {
   try {
-    if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); return res.status(405).send('Method Not Allowed'); }
+    if (req.method !== 'POST') { res.setHeader('Allow','POST'); return res.status(405).send('Method Not Allowed'); }
     const { messages = [], url } = req.body || {};
 
     // 1) Récupère la page d’annonce (si fournie)
@@ -52,6 +52,8 @@ module.exports = async (req, res) => {
 
     const data = await r.json();
     const out = data.choices?.[0]?.message?.content || 'Pas de réponse IA';
+
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     return res.status(200).send(out);
   } catch (e) {
     return res.status(500).send(`Server error: ${e.message}`);
@@ -61,20 +63,20 @@ module.exports = async (req, res) => {
 // ========= Helpers extraction (sans dépendances) =========
 function sanitizeHtml(html){
   return (html||'')
-    .replace(/<script[\s\\S]*?<\\/script>/gi,' ')
-    .replace(/<style[\\s\\S]*?<\\/style>/gi,' ')
-    .replace(/<\\/(?:p|div|br|li|h\\d)>/gi,'\\n')
+    .replace(/<script[\s\S]*?<\/script>/gi,' ')
+    .replace(/<style[\s\S]*?<\/style>/gi,' ')
+    .replace(/<\/(?:p|div|br|li|h\d)>/gi,'\n')
     .replace(/<[^>]+>/g,' ')
     .replace(/&nbsp;/g,' ')
-    .replace(/\\s+/g,' ')
+    .replace(/\s+/g,' ')
     .trim();
 }
 function extractJsonLd(html){
   const out=[]; if(!html) return out;
-  const re=/<script[^>]+type=[\"']application\\/ld\\+json[\"'][^>]*>([\\s\\S]*?)<\\/script>/gi; let m;
+  const re=/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi; let m;
   while((m=re.exec(html))!==null){
     try{
-      const raw=m[1].trim().replace(/\\/\\/.*$/gm,'');
+      const raw=m[1].trim().replace(/\/\/.*$/gm,'');
       const parsed=JSON.parse(raw);
       Array.isArray(parsed)?parsed.forEach(x=>out.push(x)):out.push(parsed);
     }catch(_){}
@@ -83,8 +85,8 @@ function extractJsonLd(html){
 }
 function extractMeta(html){
   const take=(name)=>{
-    const re = new RegExp(`<meta[^>]+property=[\"']${name}[\"'][^>]+content=[\"']([^\"']+)[\"']`,'i');
-    const re2= new RegExp(`<meta[^>]+name=[\"']${name}[\"'][^>]+content=[\"']([^\"']+)[\"']`,'i');
+    const re = new RegExp(`<meta[^>]+property=["']${name}["'][^>]+content=["']([^"']+)["']`,'i');
+    const re2= new RegExp(`<meta[^>]+name=["']${name}["'][^>]+content=["']([^"']+)["']`,'i');
     return (html.match(re)?.[1] || html.match(re2)?.[1] || '').trim();
   };
   return {
@@ -94,7 +96,7 @@ function extractMeta(html){
     locale: take('og:locale'),
   };
 }
-function numFR(s){ if(!s) return null; const c=String(s).replace(/\\s/g,'').replace(/\\u00A0/g,'').replace(/[€]/g,'').replace(/,/g,'.'); const m=c.match(/(\\d+(\\.\\d+)?)/); return m?parseFloat(m[1]):null; }
+function numFR(s){ if(!s) return null; const c=String(s).replace(/\s/g,'').replace(/\u00A0/g,'').replace(/[€]/g,'').replace(/,/g,'.'); const m=c.match(/(\d+(\.\d+)?)/); return m?parseFloat(m[1]):null; }
 function findFirst(re, text){ const m=text.match(re); return m?m[1].trim():''; }
 function composeFacts({ url, host, html, text, jsonld, meta }){
   const facts={ url, host, title: meta.title||'', description: meta.description||'', price:null, surface:null, rooms:null, bedrooms:null, city:'', postalCode:'', dpe:'', ges:'', year:null };
@@ -126,18 +128,18 @@ function composeFacts({ url, host, html, text, jsonld, meta }){
   if(!facts.title && meta.title) facts.title=meta.title;
   if(!facts.description && meta.description) facts.description=meta.description;
 
-  if(!facts.price)    facts.price   = numFR(findFirst(/(?:Prix|Price|€)\\D{0,10}(\\d[\\d\\s.,]{3,})/i, text));
-  if(!facts.surface)  facts.surface = numFR(findFirst(/(?:Surface|Superficie|m²|m2)\\D{0,10}(\\d[\\d\\s.,]{1,5})/i, text));
-  if(!facts.rooms)    facts.rooms   = numFR(findFirst(/(?:pi[eè]ces?)\\D{0,10}(\\d{1,2})/i, text));
-  if(!facts.bedrooms) facts.bedrooms= numFR(findFirst(/(?:chambres?)\\D{0,10}(\\d{1,2})/i, text));
-  if(!facts.dpe)      facts.dpe     = (findFirst(/\\bDPE\\W*([A-G])\\b/i, text)||'').toUpperCase();
-  if(!facts.ges)      facts.ges     = (findFirst(/\\bGES\\W*([A-G])\\b/i, text)||'').toUpperCase();
-  if(!facts.year)     facts.year    = numFR(findFirst(/(?:ann[eé]e|construit[e]? en)\\D{0,10}(\\d{4})/i, text));
+  if(!facts.price)    facts.price   = numFR(findFirst(/(?:Prix|Price|€)\D{0,10}(\d[\d\s.,]{3,})/i, text));
+  if(!facts.surface)  facts.surface = numFR(findFirst(/(?:Surface|Superficie|m²|m2)\D{0,10}(\d[\d\s.,]{1,5})/i, text));
+  if(!facts.rooms)    facts.rooms   = numFR(findFirst(/(?:pi[eè]ces?)\D{0,10}(\d{1,2})/i, text));
+  if(!facts.bedrooms) facts.bedrooms= numFR(findFirst(/(?:chambres?)\D{0,10}(\d{1,2})/i, text));
+  if(!facts.dpe)      facts.dpe     = (findFirst(/\bDPE\W*([A-G])\b/i, text)||'').toUpperCase();
+  if(!facts.ges)      facts.ges     = (findFirst(/\bGES\W*([A-G])\b/i, text)||'').toUpperCase();
+  if(!facts.year)     facts.year    = numFR(findFirst(/(?:ann[eé]e|construit[e]? en)\D{0,10}(\d{4})/i, text));
 
-  if (/leboncoin\\.fr$/.test(host)) { if(!facts.city) facts.city = findFirst(/(?:Adresse|Ville)\\s*:\\s*([A-Za-zÀ-ÿ\\-\\s]+)/i, text); }
-  if (/seloger\\.com$/.test(host))  { if(!facts.city) facts.city = findFirst(/(?:à|A)\\s+([A-Za-zÀ-ÿ\\-\\s]+)\\s+\\(\\d{5}\\)/, text); }
+  if (/leboncoin\.fr$/.test(host)) { if(!facts.city) facts.city = findFirst(/(?:Adresse|Ville)\s*:\s*([A-Za-zÀ-ÿ\-\s]+)/i, text); }
+  if (/seloger\.com$/.test(host))  { if(!facts.city) facts.city = findFirst(/(?:à|A)\s+([A-Za-zÀ-ÿ\-\s]+)\s+\(\d{5}\)/, text); }
 
-  if (facts.city) facts.city = facts.city.replace(/\\s+/g,' ').trim();
+  if (facts.city) facts.city = facts.city.replace(/\s+/g,' ').trim();
   return facts;
 }
 function buildContextFromFacts(f, text){
@@ -155,9 +157,9 @@ function buildContextFromFacts(f, text){
     const p=Math.round(f.price/f.surface);
     parts.push(`Prix/m²: ${p.toLocaleString('fr-FR')} €/m²`);
   }
-  const header = parts.join('\\n');
-  const excerpt = '\\n--- Extrait page (tronqué) ---\\n' + (text||'').slice(0,3000);
-  return (header?header+'\\n':'') + excerpt;
+  const header = parts.join('\n');
+  const excerpt = '\n--- Extrait page (tronqué) ---\n' + (text||'').slice(0,3000);
+  return (header?header+'\n':'') + excerpt;
 }
 function getSystemPrompt(url, urlContext){
   return `Tu es Chef de Projet marchand de biens + maîtrise d'oeuvre travaux en France. Utilise les données extraites ci-dessous comme source prioritaire. Parle cash, structuré, chiffres obligatoires.
