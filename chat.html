@@ -23,17 +23,17 @@
         <input id="urlInput" type="url" placeholder="https://www.leboncoin.fr/…" class="flex-1 px-3 py-2 rounded-md border border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-400" />
         <button id="loadBtn" class="px-3 py-2 rounded-md bg-zinc-900 text-white">Charger</button>
       </div>
-      <p class="text-xs text-zinc-500 mt-1">Colle le lien de l'annonce. Au clic sur “Charger”, l’IA lance automatiquement l’analyse à partir des infos de la page.</p>
+      <p class="text-xs text-zinc-500 mt-1">Au clic sur “Charger”, l’IA lit la page et lance l’analyse automatiquement.</p>
     </section>
 
     <main id="chat" class="border border-zinc-200 rounded-lg bg-white h-[65vh] overflow-y-auto p-3 space-y-3"></main>
 
     <form id="form" class="mt-3 flex gap-2">
-      <input id="msg" placeholder="Pose ta question (ex: travaux €/m², risques, négo…)" class="flex-1 px-3 py-2 rounded-md border border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-400" />
+      <input id="msg" placeholder="Pose ta question (travaux €/m², risques, négo…)" class="flex-1 px-3 py-2 rounded-md border border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-400" />
       <button class="px-4 py-2 rounded-md bg-zinc-900 text-white">Envoyer</button>
     </form>
 
-    <footer class="text-[11px] text-zinc-500 mt-4">⚠️ Prototype. Vérifie les chiffrages/normes auprès de pros (BET, architecte, diagnostiqueur, assureur).</footer>
+    <footer class="text-[11px] text-zinc-500 mt-4">⚠️ Prototype. Vérifie chiffrages/normes auprès de pros (BET, architecte, diagnostiqueur, assureur).</footer>
   </div>
 
   <script>
@@ -47,79 +47,46 @@
     let messages = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
     let currentURL = '';
 
-    function save() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
-    }
-
-    function escapeHtml(str) {
-      return str.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-    }
-
-    function bubble(role, html) {
+    function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(messages)); }
+    function escapeHtml(str){ return str.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+    function bubble(role, html){
       const wrap = document.createElement('div');
       wrap.className = role === 'user' ? 'flex justify-end' : 'flex justify-start';
       const b = document.createElement('div');
       b.className = 'max-w-[85%] whitespace-pre-wrap text-sm md:text-base rounded-2xl px-4 py-2 shadow ' + (role === 'user' ? 'bg-zinc-900 text-white rounded-br-md' : 'bg-zinc-100 text-zinc-900 rounded-bl-md');
       b.innerHTML = html;
-      wrap.appendChild(b);
-      chatEl.appendChild(wrap);
-      chatEl.scrollTop = chatEl.scrollHeight;
+      wrap.appendChild(b); chatEl.appendChild(wrap); chatEl.scrollTop = chatEl.scrollHeight;
     }
+    function render(){ chatEl.innerHTML=''; for(const m of messages) bubble(m.role, escapeHtml(m.content)); }
 
-    function render() {
-      chatEl.innerHTML = '';
-      for (const m of messages) bubble(m.role, escapeHtml(m.content));
-    }
-
-    // --- Appel API (non-streaming pour simplicité) ---
-    async function ask(payload) {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+    async function ask(payload){
+      const res = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       const text = await res.text();
       bubble('assistant', escapeHtml(text));
-      messages.push({ role: 'assistant', content: text });
-      save();
+      messages.push({ role:'assistant', content: text }); save();
     }
 
-    // --- Envoi manuel via la zone de saisie ---
-    form.addEventListener('submit', async (e) => {
+    form.addEventListener('submit', (e)=>{
       e.preventDefault();
-      const content = msgInput.value.trim();
-      if (!content) return;
-      messages.push({ role: 'user', content });
-      bubble('user', escapeHtml(content));
-      msgInput.value = '';
-      save();
+      const content = msgInput.value.trim(); if(!content) return;
+      messages.push({ role:'user', content }); bubble('user', escapeHtml(content));
+      msgInput.value=''; save();
       ask({ messages, url: currentURL });
     });
 
-    // --- ÉTAPE B: Attacher l’URL ET lancer automatiquement “Analyse l’annonce” ---
-    loadBtn.addEventListener('click', () => {
-      const u = urlInput.value.trim();
-      if (!u) return;
-
-      // 1) On garde l’URL comme contexte courant
+    // Auto-analyse au clic sur “Charger”
+    loadBtn.addEventListener('click', ()=>{
+      const u = urlInput.value.trim(); if(!u) return;
       currentURL = u;
-      messages.push({ role: 'system', content: `[URL] ${u}` });
+      messages.push({ role:'system', content:`[URL] ${u}` });
       save();
-
-      // 2) On informe visuellement
       bubble('assistant', 'URL attachée → j’analyse l’annonce…');
-
-      // 3) On envoie automatiquement la question “Analyse l’annonce”
       const question = "Analyse l'annonce";
-      messages.push({ role: 'user', content: question });
-      bubble('user', escapeHtml(question));
-      save();
-
-      // 4) On déclenche l’appel API
+      messages.push({ role:'user', content: question });
+      bubble('user', escapeHtml(question)); save();
       ask({ messages, url: currentURL });
     });
 
-    // Rendu initial
     render();
   </script>
 </body>
