@@ -28,7 +28,7 @@
 <body>
   <h1>Le Bon Guide — Analyse IA</h1>
   <p class="note">
-    L’utilisateur saisit les infos du bien, l’IA renvoie : <strong>6 points forts</strong>, <strong>6 points de vigilance</strong>, <strong>2 améliororations</strong>.
+    L’utilisateur saisit les infos du bien, l’IA renvoie : <strong>6 points forts</strong>, <strong>6 points de vigilance</strong>, <strong>2 améliorations</strong>.
   </p>
 
   <form id="form">
@@ -62,7 +62,7 @@
       </div>
       <div class="field">
         <div class="label">Localisation (ville ou adresse)</div>
-        <input id="localisation" class="input" type="text" placeholder="ex: Bordeaux (33000)" />
+        <input id="localisation" class="input" type="text" placeholder="ex: Libourne" />
         <div id="err-localisation" class="error-text" style="display:none;"></div>
       </div>
       <div class="field">
@@ -151,15 +151,9 @@
       const ulF = document.getElementById('liste-forts');
       const ulV = document.getElementById('liste-vigi');
       const ulA = document.getElementById('liste-amels');
-      ulF.innerHTML = "";
-      ulV.innerHTML = "";
-      ulA.innerHTML = "";
-      (res.forts || []).forEach(t => {
-        const li = document.createElement('li'); li.textContent = t; ulF.appendChild(li);
-      });
-      (res.vigilances || []).forEach(t => {
-        const li = document.createElement('li'); li.textContent = t; ulV.appendChild(li);
-      });
+      ulF.innerHTML = ""; ulV.innerHTML = ""; ulA.innerHTML = "";
+      (res.forts || []).forEach(t => { const li = document.createElement('li'); li.textContent = t; ulF.appendChild(li); });
+      (res.vigilances || []).forEach(t => { const li = document.createElement('li'); li.textContent = t; ulV.appendChild(li); });
       (res.ameliorations || res.amels || []).forEach(a => {
         const li = document.createElement('li');
         const action = a.action || a;
@@ -176,9 +170,7 @@
       e.preventDefault();
       const status = document.getElementById('status');
       const btn = document.getElementById('analyserBtn');
-      status.textContent = "";
-      status.className = "";
-      btn.disabled = true;
+      status.textContent = ""; status.className = ""; btn.disabled = true;
 
       const ids = ['surfaceHab','nbPieces','nbSdb','anneeConstr','surfaceTerrain','prixVente','localisation'];
       ids.forEach(id => {
@@ -203,10 +195,7 @@
         ok = false;
         document.getElementById(id).classList.add('error');
         const err = document.getElementById('err-' + id);
-        if (err){
-          err.textContent = msg;
-          err.style.display = 'block';
-        }
+        if (err){ err.textContent = msg; err.style.display = 'block'; }
       }
 
       const currentYear = (new Date()).getFullYear();
@@ -218,18 +207,9 @@
       if (!(prixVente >= 10000 && prixVente <= 5000000)) setErr('prixVente',"10 000 à 5 000 000 €");
       if (localisation.length < 2) setErr('localisation',"Ville/adresse obligatoire (≥ 2 caractères)");
 
-      if (!ok){
-        status.textContent = "Corrige les champs en rouge, puis relance l’analyse.";
-        status.className = "error";
-        btn.disabled = false;
-        return;
-      }
+      if (!ok){ status.textContent = "Corrige les champs en rouge, puis relance l’analyse."; status.className = "error"; btn.disabled = false; return; }
 
-      const data = {
-        surfaceHab, nbPieces, nbSdb, anneeConstr, dpe, localisation,
-        piscine, garage, doubleVitrage, surfaceTerrain, prixVente,
-        travauxRecents, etatGeneral
-      };
+      const data = { surfaceHab, nbPieces, nbSdb, anneeConstr, dpe, localisation, piscine, garage, doubleVitrage, surfaceTerrain, prixVente, travauxRecents, etatGeneral };
 
       status.textContent = "Analyse IA en cours...";
       try {
@@ -238,15 +218,13 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ form: data })
         });
-        if (!resp.ok){
-          throw new Error("HTTP " + resp.status);
-        }
-        const json = await resp.json();
+        const json = await resp.json().catch(() => ({}));
+        if (!resp.ok) { throw new Error(json?.error || ("HTTP " + resp.status)); }
         fillResults(json);
         status.textContent = "Analyse IA terminée.";
       } catch (err){
         console.error("Erreur IA:", err);
-        status.textContent = "Erreur lors de l’analyse IA (serveur ou connexion).";
+        status.textContent = String(err.message || err);
         status.className = "error";
       } finally {
         btn.disabled = false;
