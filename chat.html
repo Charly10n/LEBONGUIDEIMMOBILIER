@@ -1,32 +1,105 @@
 <!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>Chat Immo & Travaux</title>
-  </head>
-  <body>
-    <h1>Chat Immobilier & Travaux</h1>
-    <p>Colle ici une URL d’annonce (ex: LeBonCoin) :</p>
-    <input id="url" placeholder="https://..." />
-    <button onclick="send()">Analyser</button>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Le Bon Guide Immobilier — Chat</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    ::-webkit-scrollbar{width:10px}
+    ::-webkit-scrollbar-thumb{background:#d4d4d8;border-radius:9999px}
+  </style>
+</head>
+<body class="bg-zinc-50 text-zinc-900">
+  <div class="max-w-5xl mx-auto p-4 md:p-6">
+    <header class="flex items-center justify-between mb-4">
+      <div>
+        <h1 class="text-2xl md:text-3xl font-bold">Assistant Immo & Travaux</h1>
+        <p class="text-sm text-zinc-500">Analyse d'annonces + chiffrage travaux + checklist diligence</p>
+      </div>
+      <a href="/index.html" class="text-sm underline">⟵ Retour</a>
+    </header>
 
-    <div id="chat"></div>
+    <section class="bg-white rounded-2xl border border-zinc-200 p-3 md:p-4 mb-4 shadow-sm">
+      <label class="block text-sm font-medium mb-2">URL de l'annonce</label>
+      <div class="flex gap-2">
+        <input id="urlInput" type="url" placeholder="https://www.leboncoin.fr/…" class="flex-1 px-3 py-2 rounded-xl border border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-400" />
+        <button id="loadBtn" class="px-4 py-2 rounded-xl bg-zinc-900 text-white">Charger</button>
+      </div>
+      <div class="flex flex-wrap gap-2 mt-3">
+        <button data-q="Analyse l'annonce" class="quick px-3 py-1.5 text-sm rounded-full bg-zinc-100 border">Analyse</button>
+        <button data-q="Donne les travaux poste par poste avec fourchettes €/m² et total" class="quick px-3 py-1.5 text-sm rounded-full bg-zinc-100 border">Travaux & coûts</button>
+        <button data-q="Donne 6 points forts + 6 vigilances avec coût et priorité" class="quick px-3 py-1.5 text-sm rounded-full bg-zinc-100 border">Forces & risques</button>
+        <button data-q="Propose 3 leviers de négociation avec rabais cible en % et €" class="quick px-3 py-1.5 text-sm rounded-full bg-zinc-100 border">Négociation</button>
+      </div>
+    </section>
 
-    <script>
-      async function send() {
-        const url = document.getElementById("url").value;
-        const chat = document.getElementById("chat");
-        chat.innerHTML = "Analyse en cours...";
+    <main id="chat" class="border border-zinc-200 rounded-2xl bg-white h-[65vh] overflow-y-auto p-3 space-y-3 shadow-sm"></main>
 
-        const res = await fetch("/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url }),
-        });
+    <form id="form" class="sticky bottom-4 mt-3 flex gap-2 bg-white/60 backdrop-blur p-2 rounded-2xl border border-zinc-200">
+      <input id="msg" placeholder="Pose ta question… (chiffrage élec/plomberie, conformité RE2020, risques structure…)" class="flex-1 px-3 py-2 rounded-xl border border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-400" />
+      <button class="px-4 py-2 rounded-xl bg-zinc-900 text-white">Envoyer</button>
+    </form>
 
-        const text = await res.text();
-        chat.innerHTML = text;
-      }
-    </script>
-  </body>
+    <footer class="text-[11px] text-zinc-500 mt-4">Prototype. Vérifie toujours les chiffrages et normes auprès de pros (BET, architecte, diagnostiqueur, assureur).</footer>
+  </div>
+
+  <script>
+    const chatEl = document.getElementById('chat');
+    const form = document.getElementById('form');
+    const msgInput = document.getElementById('msg');
+    const urlInput = document.getElementById('urlInput');
+    const loadBtn = document.getElementById('loadBtn');
+
+    const STORAGE_KEY = 'lbgichat_v2';
+    let messages = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    let currentURL = '';
+
+    function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(messages)); }
+
+    function bubble(role, html){
+      const row = document.createElement('div');
+      row.className = role==='user' ? 'flex justify-end' : 'flex justify-start';
+      const b = document.createElement('div');
+      b.className = 'max-w-[85%] whitespace-pre-wrap text-sm md:text-[15px] leading-relaxed rounded-2xl px-4 py-2 shadow ' + (role==='user' ? 'bg-zinc-900 text-white rounded-br-md' : 'bg-zinc-100 text-zinc-900 rounded-bl-md');
+      b.innerHTML = html;
+      row.appendChild(b); chatEl.appendChild(row); chatEl.scrollTop = chatEl.scrollHeight;
+    }
+
+    function escapeHtml(str){return str.replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+    function render(){ chatEl.innerHTML=''; for(const m of messages) bubble(m.role, escapeHtml(m.content)); }
+
+    async function ask(payload){
+      const res = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const text = await res.text();
+      bubble('assistant', escapeHtml(text));
+      messages.push({ role: 'assistant', content: text }); save();
+    }
+
+    form.addEventListener('submit', (e)=>{
+      e.preventDefault();
+      const content = msgInput.value.trim(); if(!content) return;
+      messages.push({ role:'user', content }); bubble('user', escapeHtml(content));
+      msgInput.value = ''; save();
+      ask({ messages, url: currentURL });
+    });
+
+    loadBtn.addEventListener('click', ()=>{
+      const u = urlInput.value.trim(); if(!u) return;
+      currentURL = u;
+      messages.push({ role: 'system', content: `[URL] ${u}` });
+      save();
+      bubble('assistant', 'URL attachée. Tape « Analyse l\'annonce » ou utilise un bouton rapide.');
+    });
+
+    document.querySelectorAll('.quick').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        msgInput.value = btn.dataset.q;
+        form.dispatchEvent(new Event('submit'));
+      });
+    });
+
+    render();
+  </script>
+</body>
 </html>
