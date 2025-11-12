@@ -1,0 +1,32 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Chat Immo & Travaux</title>
+  </head>
+  <body>
+    <h1>Chat Immobilier & Travaux</h1>
+    <p>Colle ici une URL d’annonce (ex: LeBonCoin) :</p>
+    <input id="url" placeholder="https://..." />
+    <button onclick="send()">Analyser</button>
+
+    <div id="chat"></div>
+
+    <script>
+      async function send() {
+        const url = document.getElementById("url").value;
+        const chat = document.getElementById("chat");
+        chat.innerHTML = "Analyse en cours...";
+
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url }),
+        });
+
+        const text = await res.text();
+        chat.innerHTML = text;
+      }
+    </script>
+  </body>
+</html>
