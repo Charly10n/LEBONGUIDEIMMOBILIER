@@ -1,8 +1,6 @@
 import OpenAI from "openai";
 
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -13,11 +11,7 @@ export default async function handler(req, res) {
   try {
     let body = req.body || {};
     if (typeof body === "string") {
-      try {
-        body = JSON.parse(body);
-      } catch (e) {
-        body = {};
-      }
+      try { body = JSON.parse(body); } catch { body = {}; }
     }
 
     const form = body.form;
@@ -28,85 +22,58 @@ export default async function handler(req, res) {
 
     const prompt = `
 Tu es un expert immobilier français (20 ans d'expérience), très direct et concret.
-Tu aides un acheteur débutant à analyser un bien.
-
 Données du bien (JSON):
 ${JSON.stringify(form, null, 2)}
 
-Attendu: STRICTEMENT un JSON de la forme:
-
+Réponds STRICTEMENT en JSON:
 {
-  "forts": [
-    "phrase courte, concrète, 1 idée par point",
-    "... (6 éléments au total, max)"
-  ],
-  "vigilances": [
-    "risque ou point à vérifier, concret, actionnable",
-    "... (6 éléments au total, max)"
-  ],
+  "forts": ["...", "...", "...", "...", "...", "..."],
+  "vigilances": ["...", "...", "...", "...", "...", "..."],
   "ameliorations": [
-    {
-      "action": "travaux ou optimisation à faire",
-      "impact_dpe": "impact probable sur le DPE (ex: '+1 classe', 'faible', 'fort')",
-      "gain": "ordre de grandeur sur la facture ou la valeur (ex: '-20% chauffage', '+10k€ valeur revente')"
-    },
-    {
-      "action": "...",
-      "impact_dpe": "...",
-      "gain": "..."
-    }
+    { "action": "...", "impact_dpe": "...", "gain": "..." },
+    { "action": "...", "impact_dpe": "...", "gain": "..." }
   ]
 }
-
-Contraintes :
-- Max 6 points forts, max 6 points de vigilance, exactement 2 améliorations.
-- Tu te bases VRAIMENT sur l'âge, le DPE, les travaux récents, l'état, la surface et le prix/m².
-- Tu parles comme un pro qui protège son client, pas comme un vendeur.
+Règles: max 6/6 et exactement 2 améliorations, concret et actionnable.
 `;
 
     const completion = await client.chat.completions.create({
-      model: "gpt-4.1-mini",
+      model: "gpt-4o-mini",                       // <- modèle sûr et dispo
       response_format: { type: "json_object" },
       messages: [
-        {
-          role: "system",
-          content: "Tu es un expert immobilier français très cash, tu protèges l'acheteur."
-        },
+        { role: "system", content: "Tu es un expert immobilier français très cash, tu protèges l'acheteur." },
         { role: "user", content: prompt },
       ],
     });
 
-    const raw = completion.choices[0].message.content;
+    const raw = completion.choices?.[0]?.message?.content || "{}";
     let parsed;
-    try {
-      parsed = JSON.parse(raw);
-    } catch (e) {
-      console.error("Erreur parse JSON IA:", e, raw);
-      res.status(500).json({ error: "Réponse IA non JSON" });
-      return;
+    try { parsed = JSON.parse(raw); } catch (e) {
+      console.error("Réponse IA non JSON:", raw);
+      return res.status(500).json({ error: "Réponse IA non JSON" });
     }
 
     const forts = Array.isArray(parsed.forts) ? parsed.forts.filter(Boolean).slice(0, 6) : [];
     const vigilances = Array.isArray(parsed.vigilances) ? parsed.vigilances.filter(Boolean).slice(0, 6) : [];
-    let amelsRaw =
-      Array.isArray(parsed.ameliorations) ? parsed.ameliorations :
-      Array.isArray(parsed.amels) ? parsed.amels : [];
-
-    const ameliorations = amelsRaw.slice(0, 2).map((a) =>
-      typeof a === "string"
-        ? { action: a, impact_dpe: null, gain: null }
-        : {
-            action: a.action || "",
-            impact_dpe: a.impact_dpe ?? null,
-            gain: a.gain ?? null,
-          }
+    const amelsRaw = Array.isArray(parsed.ameliorations) ? parsed.ameliorations
+                    : Array.isArray(parsed.amels) ? parsed.amels : [];
+    const ameliorations = amelsRaw.slice(0, 2).map(a =>
+      typeof a === "string" ? { action: a, impact_dpe: null, gain: null }
+                            : { action: a.action || "", impact_dpe: a.impact_dpe ?? null, gain: a.gain ?? null }
     );
 
-    if (!forts.length || !vigilances.length || ameliorations.length < 1) {
-      res.status(500).json({ error: "Réponse IA incomplète" });
-      return;
+    if (!forts.length || !vigilances.length || ameliorations.length < 2) {
+      return res.status(500).json({ error: "Réponse IA incomplète" });
     }
 
     res.status(200).json({ forts, vigilances, ameliorations });
   } catch (err) {
-    console.error("Erreur /api/analyz
+    console.error("Erreur /api/analyze-ia:", err);
+    const msg =
+      err?.response?.data?.error?.message ||
+      err?.error?.message ||
+      err?.message ||
+      "Erreur serveur IA";
+    res.status(500).json({ error: msg });
+  }
+}
